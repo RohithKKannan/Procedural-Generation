@@ -71,11 +71,12 @@ namespace PerlinNoiseVisualizer
             {
                 for (int z = 0; z < worldZSize; z++)
                 {
-                    Vector3 pos = new Vector3(x + gridOffset, 0, z + gridOffset);
+                    Vector3 pos = new Vector3(x * gridOffset, 0, z * gridOffset);
                     Cube cube = new Cube();
                     cube.cubeObject = Instantiate(cubePrefab, pos, Quaternion.identity, this.transform);
                     cube.xPos = x;
                     cube.zPos = z;
+                    cube.gridOffset = gridOffset;
                     cubesList.Add(cube);
                 }
             }
@@ -109,6 +110,7 @@ namespace PerlinNoiseVisualizer
     {
         public int xPos;
         public int zPos;
+        public float gridOffset;
 
         public GameObject cubeObject;
 
@@ -116,7 +118,7 @@ namespace PerlinNoiseVisualizer
         {
             float y = Mathf.PerlinNoise(xPos * noiseScale, zPos * noiseScale) * heightMultiplier;
 
-            cubeObject.transform.position = new Vector3(xPos, y, zPos);
+            cubeObject.transform.position = new Vector3(xPos * gridOffset, y, zPos * gridOffset);
         }
     }
 }

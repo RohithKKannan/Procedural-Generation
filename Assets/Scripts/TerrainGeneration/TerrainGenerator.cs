@@ -1,62 +1,82 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace TerrainGeneration
 {
     public class TerrainGenerator : MonoBehaviour
     {
+        [SerializeField] private PlayerController playerController;
+
         [Header("Initialization")]
         [SerializeField] private GameObject cubePrefab;
         [SerializeField] private int worldXSize;
         [SerializeField] private int worldZSize;
-        [SerializeField] private float gridOffset;
 
         [Header("Variables")]
-        [Range(0.1f, 20f)]
-        [SerializeField] private float detailScale = 8f;
+        [SerializeField] private float noiseScale = 0.3f;
+        [SerializeField] private float heightMultiplier = 3f;
 
-        private List<Cube> cubesList = new();
+        private Hashtable cubeContainer = new();
+
+        private Vector2Int playerLocation = new();
 
         private void Start()
         {
-            // GenerateGrid();
-            // UpdateCubePositions();
-        }
-
-        private void OnValidate()
-        {
-            UpdateCubePositions();
+            GenerateGrid();
         }
 
         [ContextMenu("Generate Grid!")]
         private void GenerateGrid()
         {
-            for (int x = 0; x < worldXSize; x++)
-            {
-                for (int z = 0; z < worldZSize; z++)
-                {
-                    Vector3 pos = new Vector3(x * gridOffset, 0, z * gridOffset);
+            playerLocation = playerController.CurrentPosition;
 
-                    Cube cube = new Cube();
-                    cube.cubeObject = Instantiate(cubePrefab);
-                    cube.cubeObject.transform.SetParent(this.transform);
-                    cube.cubeObject.transform.localPosition = pos;
-                    cube.xPos = x;
-                    cube.zPos = z;
-                    cubesList.Add(cube);
+            for (int x = -worldXSize; x < worldXSize; x++)
+            {
+                for (int z = -worldZSize; z < worldZSize; z++)
+                {
+                    float y = Mathf.PerlinNoise((x + playerLocation.x) * noiseScale, (z + playerLocation.y) * noiseScale) * heightMultiplier;
+                    Vector2Int cubeLocation = new Vector2Int((x + playerLocation.x), (z + playerLocation.y));
+                    Vector3 pos = new Vector3(x + playerLocation.x, y, z + playerLocation.y);
+
+                    GameObject newCube = Instantiate(cubePrefab, pos, Quaternion.identity);
+                    newCube.transform.SetParent(this.transform, false);
+                    cubeContainer.Add(cubeLocation, newCube);
                 }
             }
-
-            UpdateCubePositions();
         }
 
-        public void UpdateCubePositions()
+        private void PlayerMoved()
         {
-            foreach (Cube cube in cubesList)
+            Debug.Log(playerController.CurrentPosition);
+
+            if (playerLocation == playerController.CurrentPosition)
+                return;
+
+            playerLocation = playerController.CurrentPosition;
+
+            for (int x = -worldXSize; x < worldXSize; x++)
             {
-                cube.UpdatePosition(detailScale, transform.position);
+                for (int z = -worldZSize; z < worldZSize; z++)
+                {
+                    float y = Mathf.PerlinNoise((x + playerLocation.x) * noiseScale, (z + playerLocation.y) * noiseScale) * heightMultiplier;
+                    Vector2Int cubeLocation = new Vector2Int(x + playerLocation.x, z + playerLocation.y);
+                    Vector3 pos = new Vector3(x + playerLocation.x, y, z + playerLocation.y);
+
+                    if (!cubeContainer.ContainsKey(pos))
+                    {
+                        GameObject newCube = Instantiate(cubePrefab, pos, Quaternion.identity);
+                        newCube.transform.SetParent(this.transform, false);
+                        cubeContainer.Add(pos, newCube);
+                    }
+                }
             }
+        }
+
+        private void Update()
+        {
+            PlayerMoved();
         }
     }
 
@@ -66,15 +86,5 @@ namespace TerrainGeneration
         public float zPos;
 
         public GameObject cubeObject;
-
-        public void UpdatePosition(float detailScale, Vector3 generatorPos)
-        {
-            float xNoise = (xPos + generatorPos.x) / detailScale;
-            float zNoise = (zPos + generatorPos.z) / detailScale;
-
-            float y = Mathf.PerlinNoise(xNoise, zNoise);
-
-            cubeObject.transform.position = new Vector3(cubeObject.transform.position.x, y, cubeObject.transform.position.z);
-        }
     }
 }
