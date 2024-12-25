@@ -7,84 +7,90 @@ namespace TerrainGeneration
 {
     public class TerrainGenerator : MonoBehaviour
     {
-        [SerializeField] private PlayerController playerController;
+        [SerializeField] private Transform playerTransform;
 
         [Header("Initialization")]
-        [SerializeField] private GameObject cubePrefab;
-        [SerializeField] private int worldXSize;
-        [SerializeField] private int worldZSize;
+        [SerializeField] private ChunkGenerator chunkGeneratorPrefab;
 
         [Header("Variables")]
         [SerializeField] private float noiseScale = 0.3f;
-        [SerializeField] private float heightMultiplier = 3f;
+        [SerializeField] private float heightMultiplier = 0.3f;
 
-        private Hashtable cubeContainer = new();
+        private Vector3 currentPlayerPosition;
+        private Vector3 prevPlayerPosition = Vector3.positiveInfinity;
 
-        private Vector2Int playerLocation = new();
+        private Stack<ChunkGenerator> chunkGeneratorPool = new();
+        private List<ChunkGenerator> activeChunkGenerators = new();
 
-        private void Start()
+        private void Awake()
         {
-            GenerateGrid();
-        }
-
-        [ContextMenu("Generate Grid!")]
-        private void GenerateGrid()
-        {
-            playerLocation = playerController.CurrentPosition;
-
-            for (int x = -worldXSize; x < worldXSize; x++)
+            for (int i = 0; i < 5; i++)
             {
-                for (int z = -worldZSize; z < worldZSize; z++)
-                {
-                    float y = Mathf.PerlinNoise((x + playerLocation.x) * noiseScale, (z + playerLocation.y) * noiseScale) * heightMultiplier;
-                    Vector2Int cubeLocation = new Vector2Int((x + playerLocation.x), (z + playerLocation.y));
-                    Vector3 pos = new Vector3(x + playerLocation.x, y, z + playerLocation.y);
-
-                    GameObject newCube = Instantiate(cubePrefab, pos, Quaternion.identity);
-                    newCube.transform.SetParent(this.transform, false);
-                    cubeContainer.Add(cubeLocation, newCube);
-                }
+                ChunkGenerator chunkGenerator = GameObject.Instantiate<ChunkGenerator>(chunkGeneratorPrefab);
+                chunkGenerator.transform.SetParent(this.transform, true);
+                chunkGenerator.Init(noiseScale, heightMultiplier);
+                chunkGeneratorPool.Push(chunkGenerator);
             }
         }
 
-        private void PlayerMoved()
+        private ChunkGenerator GetChunkGenerator()
         {
-            Debug.Log(playerController.CurrentPosition);
-
-            if (playerLocation == playerController.CurrentPosition)
-                return;
-
-            playerLocation = playerController.CurrentPosition;
-
-            for (int x = -worldXSize; x < worldXSize; x++)
+            if (chunkGeneratorPool.Count < 1)
             {
-                for (int z = -worldZSize; z < worldZSize; z++)
-                {
-                    float y = Mathf.PerlinNoise((x + playerLocation.x) * noiseScale, (z + playerLocation.y) * noiseScale) * heightMultiplier;
-                    Vector2Int cubeLocation = new Vector2Int(x + playerLocation.x, z + playerLocation.y);
-                    Vector3 pos = new Vector3(x + playerLocation.x, y, z + playerLocation.y);
-
-                    if (!cubeContainer.ContainsKey(pos))
-                    {
-                        GameObject newCube = Instantiate(cubePrefab, pos, Quaternion.identity);
-                        newCube.transform.SetParent(this.transform, false);
-                        cubeContainer.Add(pos, newCube);
-                    }
-                }
+                ChunkGenerator chunkGenerator = GameObject.Instantiate<ChunkGenerator>(chunkGeneratorPrefab);
+                chunkGenerator.transform.SetParent(this.transform, true);
+                chunkGenerator.Init(noiseScale, heightMultiplier);
+                return chunkGenerator;
             }
+
+            return chunkGeneratorPool.Pop();
+        }
+
+        private void ReturnChunkGenerator(ChunkGenerator _chunkGenerator)
+        {
+            _chunkGenerator.ResetChunk();
+
+            chunkGeneratorPool.Push(_chunkGenerator);
         }
 
         private void Update()
         {
-            PlayerMoved();
+            currentPlayerPosition = RoundToNearestChunkPosition(playerTransform.position, Constants.chunkSize);
+
+            if (prevPlayerPosition == currentPlayerPosition)
+                return;
+
+            PlaceChunksAroundPlayer();
+
+            prevPlayerPosition = currentPlayerPosition;
         }
-    }
 
-    public class Cube
-    {
-        public float xPos;
-        public float zPos;
+        private Vector3 RoundToNearestChunkPosition(Vector3 position, float multiple)
+        {
+            return new Vector3(
+            Mathf.Round(position.x / multiple) * multiple,
+            0,
+            Mathf.Round(position.z / multiple) * multiple
+            );
+        }
 
-        public GameObject cubeObject;
+        private void PlaceChunksAroundPlayer()
+        {
+            if (activeChunkGenerators.Count > 0)
+            {
+                foreach (ChunkGenerator chunkGen in activeChunkGenerators)
+                {
+                    ReturnChunkGenerator(chunkGen);
+                }
+
+                activeChunkGenerators.Clear();
+            }
+
+            ChunkGenerator chunkGenerator = GetChunkGenerator();
+
+            chunkGenerator.RepositionChunk(currentPlayerPosition);
+
+            activeChunkGenerators.Add(chunkGenerator);
+        }
     }
 }

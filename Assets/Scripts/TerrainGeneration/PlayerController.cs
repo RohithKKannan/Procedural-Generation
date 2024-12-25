@@ -3,51 +3,65 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    [SerializeField] private TerrainGenerator terrainGenerator;
-
+    [Header("Movement Settings")]
     [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float jumpForce = 5f;
-    [SerializeField] private Vector3 startPosition;
+    [SerializeField] private float rotationSpeed = 10f;
+
+    [Header("Camera Settings")]
+    [SerializeField] private Transform cameraTransform;
+    [SerializeField] private float mouseSensitivity = 2f;
+    [SerializeField] private float verticalClamp = 80f;
 
     private Rigidbody rb;
-
-    private bool isGrounded = true;
-
-    public Vector2Int CurrentPosition
-    {
-        get
-        {
-            return new Vector2Int(Mathf.FloorToInt(transform.position.x), Mathf.FloorToInt(transform.position.z));
-        }
-    }
+    private float verticalRotation = 0f;
 
     private void Awake()
     {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
         rb = GetComponent<Rigidbody>();
+
+        if (!cameraTransform)
+        {
+            Debug.LogError("CameraTransform is not assigned in the inspector!");
+        }
     }
 
     private void Update()
     {
-        float moveHorizontal = Input.GetAxis("Horizontal");
-        float moveVertical = Input.GetAxis("Vertical");
-
-        Vector3 moveDirection = new Vector3(moveHorizontal, 0, moveVertical);
-
-        Vector3 move = moveDirection.normalized * moveSpeed * Time.deltaTime;
-        rb.MovePosition(transform.position + move);
-
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
-        {
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
-            isGrounded = false;
-        }
+        HandleCameraRotation();
     }
 
-    private void OnCollisionEnter(Collision collision)
+    private void FixedUpdate()
     {
-        if (collision.gameObject.CompareTag("Ground"))
+        HandleMovement();
+    }
+
+    private void HandleMovement()
+    {
+        float horizontal = Input.GetAxis("Horizontal");
+        float vertical = Input.GetAxis("Vertical");
+
+        Vector3 moveDirection = transform.forward * vertical + transform.right * horizontal;
+
+        Vector3 moveVelocity = moveDirection.normalized * moveSpeed;
+        rb.velocity = new Vector3(moveVelocity.x, rb.velocity.y, moveVelocity.z);
+    }
+
+    private void HandleCameraRotation()
+    {
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+
+        transform.Rotate(Vector3.up * mouseX);
+
+        verticalRotation -= mouseY;
+        verticalRotation = Mathf.Clamp(verticalRotation, -verticalClamp, verticalClamp);
+
+        if (cameraTransform)
         {
-            isGrounded = true;
+            cameraTransform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
         }
     }
 }
