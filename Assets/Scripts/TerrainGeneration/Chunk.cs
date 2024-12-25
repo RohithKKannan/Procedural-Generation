@@ -5,7 +5,7 @@ using UnityEngine.Events;
 
 namespace TerrainGeneration
 {
-    public class ChunkGenerator : MonoBehaviour
+    public class Chunk : MonoBehaviour
     {
         [SerializeField] private GameObject cubePrefab;
 

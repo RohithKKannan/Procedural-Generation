@@ -12,7 +12,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float mouseSensitivity = 2f;
     [SerializeField] private float verticalClamp = 80f;
 
-    private Rigidbody rb;
+    private CharacterController cc;
     private float verticalRotation = 0f;
 
     private void Awake()
@@ -20,7 +20,7 @@ public class PlayerController : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        rb = GetComponent<Rigidbody>();
+        cc = GetComponent<CharacterController>();
 
         if (!cameraTransform)
         {
@@ -46,7 +46,8 @@ public class PlayerController : MonoBehaviour
         Vector3 moveDirection = transform.forward * vertical + transform.right * horizontal;
 
         Vector3 moveVelocity = moveDirection.normalized * moveSpeed;
-        rb.velocity = new Vector3(moveVelocity.x, rb.velocity.y, moveVelocity.z);
+
+        cc.SimpleMove(moveVelocity);
     }
 
     private void HandleCameraRotation()

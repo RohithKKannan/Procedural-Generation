@@ -10,7 +10,7 @@ namespace TerrainGeneration
         [SerializeField] private Transform playerTransform;
 
         [Header("Initialization")]
-        [SerializeField] private ChunkGenerator chunkGeneratorPrefab;
+        [SerializeField] private Chunk ChunkPrefab;
 
         [Header("Variables")]
         [SerializeField] private float noiseScale = 0.3f;
@@ -19,41 +19,50 @@ namespace TerrainGeneration
         private Vector3 currentPlayerPosition;
         private Vector3 prevPlayerPosition = Vector3.positiveInfinity;
 
-        private Stack<ChunkGenerator> chunkGeneratorPool = new();
-        private List<ChunkGenerator> activeChunkGenerators = new();
+        private Stack<Chunk> ChunkPool = new();
+        private Hashtable activeChunks = new();
+
+        private List<Vector3> activePositions = new();
+        private List<Vector3> currentPositions = new();
 
         private void Awake()
         {
             for (int i = 0; i < 5; i++)
             {
-                ChunkGenerator chunkGenerator = GameObject.Instantiate<ChunkGenerator>(chunkGeneratorPrefab);
-                chunkGenerator.transform.SetParent(this.transform, true);
-                chunkGenerator.Init(noiseScale, heightMultiplier);
-                chunkGeneratorPool.Push(chunkGenerator);
+                Chunk Chunk = GameObject.Instantiate<Chunk>(ChunkPrefab);
+                Chunk.transform.SetParent(this.transform, true);
+                Chunk.Init(noiseScale, heightMultiplier);
+                ChunkPool.Push(Chunk);
             }
         }
 
-        private ChunkGenerator GetChunkGenerator()
+        #region Chunk pool
+
+        private Chunk GetChunk()
         {
-            if (chunkGeneratorPool.Count < 1)
+            if (ChunkPool.Count < 1)
             {
-                ChunkGenerator chunkGenerator = GameObject.Instantiate<ChunkGenerator>(chunkGeneratorPrefab);
-                chunkGenerator.transform.SetParent(this.transform, true);
-                chunkGenerator.Init(noiseScale, heightMultiplier);
-                return chunkGenerator;
+                Chunk Chunk = GameObject.Instantiate<Chunk>(ChunkPrefab);
+                Chunk.transform.SetParent(this.transform, true);
+                Chunk.Init(noiseScale, heightMultiplier);
+                return Chunk;
             }
 
-            return chunkGeneratorPool.Pop();
+            return ChunkPool.Pop();
         }
 
-        private void ReturnChunkGenerator(ChunkGenerator _chunkGenerator)
+        private void ReturnChunk(Chunk _Chunk)
         {
-            _chunkGenerator.ResetChunk();
+            _Chunk.ResetChunk();
 
-            chunkGeneratorPool.Push(_chunkGenerator);
+            ChunkPool.Push(_Chunk);
         }
 
-        private void Update()
+        #endregion
+
+        #region Terrain Update
+
+        private void CheckForTerrainUpdate()
         {
             currentPlayerPosition = RoundToNearestChunkPosition(playerTransform.position, Constants.chunkSize);
 
@@ -76,21 +85,44 @@ namespace TerrainGeneration
 
         private void PlaceChunksAroundPlayer()
         {
-            if (activeChunkGenerators.Count > 0)
-            {
-                foreach (ChunkGenerator chunkGen in activeChunkGenerators)
-                {
-                    ReturnChunkGenerator(chunkGen);
-                }
+            currentPositions.Clear();
 
-                activeChunkGenerators.Clear();
+            for (int x = -Constants.renderDistance; x <= Constants.renderDistance; x++)
+            {
+                for (int z = -Constants.renderDistance; z <= Constants.renderDistance; z++)
+                {
+                    Vector3 chunkPosition = currentPlayerPosition + new Vector3(x * Constants.chunkSize, 0, z * Constants.chunkSize);
+
+                    currentPositions.Add(chunkPosition);
+
+                    if (activeChunks.Contains(chunkPosition))
+                        continue;
+
+                    Chunk Chunk = GetChunk();
+                    Chunk.RepositionChunk(chunkPosition);
+
+                    activeChunks.Add(chunkPosition, Chunk);
+                }
             }
 
-            ChunkGenerator chunkGenerator = GetChunkGenerator();
+            foreach (Vector3 pos in activePositions)
+            {
+                if (!currentPositions.Contains(pos))
+                {
+                    ReturnChunk((Chunk)activeChunks[pos]);
+                    activeChunks.Remove(pos);
+                }
+            }
 
-            chunkGenerator.RepositionChunk(currentPlayerPosition);
+            activePositions.Clear();
+            activePositions.AddRange(currentPositions);
+        }
 
-            activeChunkGenerators.Add(chunkGenerator);
+        #endregion
+
+        private void Update()
+        {
+            CheckForTerrainUpdate();
         }
     }
 }
